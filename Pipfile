@@ -6,8 +6,19 @@ name = "pypi"
 [packages]
 pyubx2 = "*"
 playsound = "*"
+pyserial = "*"
+pynmea2 = "*"
+gpiozero = "*"
+"rpi.gpio" = "*"
+python-gsmmodem-new = {editable = true, ref = "master", git = "https://github.com/devegied/python-gsmmodem.git"}
+gsmtc35 = "*"
+picamera = "*"
+pysher = "*"
+websocket-client = "==0.57.0"
+pusher = "*"
+flask = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.7"
