@@ -12,7 +12,7 @@ from __future__ import print_function
 
 import sys, time, logging
 
-PORT = '/dev/ttyUSB0'
+PORT = '/dev/ttyS0'
 BAUDRATE = 9600
 NUMBER = '951190956' # Number to dial - CHANGE THIS TO A REAL NUMBER
 PIN = None # SIM card PIN (if any)

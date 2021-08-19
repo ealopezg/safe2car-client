@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 import base64
-
+import os
 class Command:
     def __init__(self,action,args={},added_at=datetime.now().isoformat(),id=None):
         self.action = action
@@ -35,8 +35,8 @@ class Command:
         return Command('alive',args=status)  
 
     @staticmethod
-    def pirCommand():
-        return Command('pir')  
+    def motionCommand():
+        return Command('motion')  
 
     @staticmethod
     def fromJson(data):

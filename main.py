@@ -16,7 +16,7 @@ import pickle
 config = Config('config.ini')
 system = System(config)
 
-
+connected = False
 
 system_on = False
 power_cut_off = False
@@ -30,13 +30,17 @@ CHANNEL_ID = 'private-vehicle.'+str(config.VEHICLE_ID)
 def motionDetected():
     global system_on
     if system_on:
-        send_q.put(Command.pirCommand())
+        send_q.put(Command.motionCommand())
 
 def pusher_connect_handler(data):
+    global connected
     data = json.loads(data)
     auth = register(data.get('socket_id'),CHANNEL_ID)
-    channel = pusher.subscribe(CHANNEL_ID,auth=auth)
-    channel.bind('action', receiveCommand)
+    if auth:
+        channel = pusher.subscribe(CHANNEL_ID,auth=auth)
+        channel.bind('action', receiveCommand)
+        
+
 
 
 
@@ -46,8 +50,9 @@ def register(socket_id,channel):
         'channel_name': channel
         }
     r = api.post(config.BASE_URL+'/broadcasting/auth',data)
-    print(r.json())
-    return r.json()['auth']
+    if r.ok:
+        return r.json()['auth']
+    return None
 
 
 def sendCommand():
@@ -56,7 +61,6 @@ def sendCommand():
         if command:
             print(command.toObject())
             r = api.post(config.BASE_URL+'/api/vehicle/action',json=command.toObject())
-            print(r.text)
             print('Command Sended: action:{} status: {}'.format(command.action,r.status_code))
 
 
@@ -83,7 +87,9 @@ def actionLoop():
             elif command.action == 'location':
                 print("Getting gps info...")
                 send_q.put(command.ok())
-                send_q.put(command.gps(52.6206345, -2.1601284))
+                location = system.getLocation()
+                if location:
+                    send_q.put(command.gps(location[0], location[1]))
             elif command.action == 'power_cut_off_activate':
                 print("Enabling Power cut...")
                 system.activateCarPowerCutter()
@@ -103,7 +109,7 @@ def actionLoop():
             elif command.action == 'call':
                 print("Making a call...")
                 send_q.put(command.ok())
-                system.makeCall(command.args.get('number'))
+                system.makeCall(command.args.get('phone'))
             elif command.action == 'system_activate':
                 print("Enabling system...")
                 system_on = True
@@ -119,6 +125,14 @@ def actionLoop():
 
 
 if __name__ == "__main__":
+    if not system.checkSIM():
+        print("MODEM NOT POWERED ON...")
+        system.toggleSIM()
+        time.sleep(5)
+        if not system.checkSIM():
+            exit(1)
+        else:
+            print("MODEM POWERED")
     system.checkSerialPorts()
     for pir in system.pir:
         pir.when_motion = motionDetected
@@ -129,7 +143,6 @@ if __name__ == "__main__":
 
     pusher.connection.bind('pusher:connection_established', pusher_connect_handler)
     pusher.connect()
-    
     
 
     send_t.start()
