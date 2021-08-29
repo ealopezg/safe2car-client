@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
-from gpiozero import MotionSensor,Buzzer
+from gpiozero import MotionSensor,Buzzer,Button
 from command import Command
 from picamera import PiCamera
 from datetime import datetime
@@ -8,10 +8,17 @@ import os
 import time
 import serial
 import subprocess
-
+import sys
 import io
 
 import pynmea2
+
+sb_was_held = False
+
+
+
+
+    
 
 class System:
     def __init__(self,config):
@@ -25,26 +32,44 @@ class System:
         self.pir.append(MotionSensor(config.PIR2_PORT))
         self.pir.append(MotionSensor(config.PIR3_PORT))
         self.system_on = False
+        self.shutdown_button = Button(self.config.SHUTDOWN_PIN)
+        self.shutdown_button.when_released = self.restart
+        self.shutdown_button.hold_time = 5
+        self.shutdown_button.when_held = self.shutdown
         GPIO.setup(self.config.CAR_POWER_PIN, False)
 
     def status(self,system):
         return {
             'buzzer': self.buzzer.is_active,
-            'system': self.system_on,
+            'system': system,
             'cut_off_power': GPIO.input(self.config.CAR_POWER_PIN)
         }
     
-    def checkLanCable():
-        cmd = subprocess.run(['cat', '/sys/class/net/eth0/operstate'], stdout=subprocess.PIPE)
+    def checkInterface(self,interface):
+        cmd = subprocess.run(['cat', '/sys/class/net/'+interface+'/operstate'], stdout=subprocess.PIPE)
         if cmd.returncode == 0:
             return cmd.stdout.decode().strip() == 'up'
         else:
             return False
-
+    
+    def restart(self):
+        global sb_was_held
+        if not sb_was_held:
+            print("RESTART")
+            self.toggleSIM()
+            subprocess.run(["sudo","reboot"])
+        sb_was_held = False
+    
+    
 
     
-    def turnOff(self):
-        GPIO.cleanup()
+    def shutdown(self):
+        global sb_was_held
+        print("SHUTDOWN SYSTEM")
+        self.toggleSIM()
+        subprocess.run(["sudo","poweroff"])
+        sb_was_held = True
+    
 
     def activateBuzzer(self):
         self.buzzer.beep(on_time=0.05,off_time=0.05)
@@ -52,10 +77,6 @@ class System:
     def deactivateBuzzer(self):
         self.buzzer.off()
     
-    def powerOnSIM(self):
-        GPIO.output(self.config.SIM_POWER_PIN, True)
-        time.sleep(3)
-        GPIO.output(self.config.SIM_POWER_PIN, False)
 
     def checkSIM(self):
         if os.path.exists(self.config.SIM_PORT):
@@ -173,7 +194,7 @@ class System:
     
     def getLocation(self):
         ser = serial.Serial(self.config.GPS_PORT, 9600, timeout=1)
-        ser.flush()
+        
         sio = io.TextIOWrapper(io.BufferedRWPair(ser, ser))
         loc = None
         timeout = time.time() + 20

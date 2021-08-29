@@ -24,6 +24,7 @@ class Config:
         self.BUZZER_PORT = int(self.config_parser['ports']['buzzer_gpio_port'])
         self.SIM_POWER_PIN = int(self.config_parser['ports']['sim_power_gpio_port'])
         self.CAR_POWER_PIN = int(self.config_parser['ports']['car_power_gpio_port'])
+        self.SHUTDOWN_PIN = int(self.config_parser['ports']['shutdown_button_gpio_port'])
         self.MODEM_1 = self.config_parser['internet']['MODEM_1']
         self.MODEM_2 = self.config_parser['internet']['MODEM_2']
     def getConfig(self):
@@ -31,8 +32,7 @@ class Config:
 
     def createFile(self):
         self.config_parser['DEFAULT'] = {'base_url': 'http://safetocar.cl','token': '','vehicle_id': '','pusher':'safetocar.cl','pusher_port': '8082','pusher_key': 'key','pusher_secret': 'secret'}
-        self.config_parser['media'] = {'backup_folder': 'backup'}
-        self.config_parser['ports'] = {'gps_serial_port':'/dev/ttyUSB0','sim_serial_port':'/dev/ttyAMA0','pir1_gpio_port': 17,'pir2_gpio_port': 18,'pir3_gpio_port': 27,'buzzer_gpio_port': 22,'sim_power_gpio_port': 24,'car_power_gpio_port': 23}
+        self.config_parser['ports'] = {'gps_serial_port':'/dev/ttyUSB0','sim_serial_port':'/dev/ttyAMA0','pir1_gpio_port': 17,'pir2_gpio_port': 18,'pir3_gpio_port': 27,'buzzer_gpio_port': 22,'sim_power_gpio_port': 24,'car_power_gpio_port': 23,'shutdown_button_gpio_port': 25}
         self.config_parser['internet'] = {'modem_1': 'eth1', 'modem_2': 'eth2'}
         with open(self.filename, 'w') as configfile:
             self.config_parser.write(configfile)

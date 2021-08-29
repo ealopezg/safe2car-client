@@ -18,6 +18,8 @@ websocket-client = "==0.57.0"
 pusher = "*"
 flask = "*"
 netifaces = "*"
+waitress = "*"
+xmltodict = "*"
 
 [dev-packages]
 

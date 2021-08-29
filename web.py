@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request
+from waitress import serve
 from config import Config
 import requests
 app = Flask(__name__,static_folder='./web/static',template_folder='./web/templates')
@@ -35,6 +36,12 @@ def save_token():
     else:
         return render_template('fail.html')
 
-if __name__ == '__main__':
-    app.run(host = '0.0.0.0', port = 8080)
-        
+def runApp():
+    serve(app,host = '0.0.0.0', port = 8080)
+    
+
+def stopApp():
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func is None:
+        raise RuntimeError('Not running werkzeug')
+    shutdown_func()

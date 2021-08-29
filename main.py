@@ -12,6 +12,9 @@ import os
 from testCamera import takePicture
 import requests
 import pickle
+from web import runApp
+from multiprocessing import Process
+import subprocess
 
 config = Config('config.ini')
 system = System(config)
@@ -21,7 +24,7 @@ connected = False
 system_on = False
 power_cut_off = False
 
-pusher = pysher.Pusher(config.PUSHER_KEY,secure=False,custom_host=config.PUSHER,port=config.PUSHER_PORT,secret=config.PUSHER_SECRET)
+pusher = pysher.Pusher(config.PUSHER_KEY,secure=False,custom_host=config.PUSHER,port=config.PUSHER_PORT,secret=config.PUSHER_SECRET,auto_sub=True)
 
 api = requests.Session()
 api.headers.update({"Authorization":"Bearer "+config.TOKEN,"Accept": "application/json"})
@@ -39,9 +42,27 @@ def pusher_connect_handler(data):
     if auth:
         channel = pusher.subscribe(CHANNEL_ID,auth=auth)
         channel.bind('action', receiveCommand)
-        
 
 
+    
+
+def alive():
+    while True:
+        r = api.post(config.BASE_URL+'/api/vehicle/alive',json=system.status(system_on))
+        print("Sending ALIVE")
+        time.sleep(60*1) # Waits for 1 minute
+
+
+def getLastState():
+    global system_on
+    r = api.get(config.BASE_URL+'/api/vehicle/state')
+    state = r.json()
+    if r.ok:
+        system_on = state.get('system')
+        if state.get('buzzer'):
+            system.activateBuzzer()
+        if state.get('cut_off_power'):
+            system.activateCarPowerCutter()
 
 
 def register(socket_id,channel):
@@ -61,6 +82,7 @@ def sendCommand():
         if command:
             print(command.toObject())
             r = api.post(config.BASE_URL+'/api/vehicle/action',json=command.toObject())
+            print(r.text)
             print('Command Sended: action:{} status: {}'.format(command.action,r.status_code))
 
 
@@ -118,7 +140,7 @@ def actionLoop():
                 print("Disabling system...")
                 system_on = False
                 send_q.put(command.ok())
-        time.sleep(5)
+        time.sleep(2)
         
 
 
@@ -133,6 +155,8 @@ if __name__ == "__main__":
             exit(1)
         else:
             print("MODEM POWERED")
+    
+    
     system.checkSerialPorts()
     for pir in system.pir:
         pir.when_motion = motionDetected
@@ -140,16 +164,24 @@ if __name__ == "__main__":
     action_q = queue.Queue()
     send_t = Thread(target=sendCommand)
     action_t = Thread(target=actionLoop)
+    alive_t = Thread(target=alive)
 
     pusher.connection.bind('pusher:connection_established', pusher_connect_handler)
     pusher.connect()
+    if system.checkInterface('eth0'):
+        print("LAN CABLE Connected...running config webserver")
+        server = Process(target=runApp)
+        server.start()
     
+    getLastState()
 
     send_t.start()
     action_t.start()
+    alive_t.start()
 
     
     send_t.join()
     action_t.join()
+    alive_t.join()
 
     
