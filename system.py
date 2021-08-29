@@ -21,6 +21,11 @@ sb_was_held = False
     
 
 class System:
+    """System Class
+    Used to control the system i/o
+    it configures and controls the gpio pins
+    and camera,gps and sim devices 
+    """
     def __init__(self,config):
         self.config = config
         GPIO.setmode(GPIO.BCM)
@@ -39,6 +44,14 @@ class System:
         GPIO.setup(self.config.CAR_POWER_PIN, False)
 
     def status(self,system):
+        """Generates a dict with actual config status of the system
+
+        Args:
+            system (bool): Describes if the system is activated or not
+
+        Returns:
+            dict
+        """
         return {
             'buzzer': self.buzzer.is_active,
             'system': system,
@@ -53,21 +66,25 @@ class System:
             return False
     
     def restart(self):
+        """Used to restart the device when the button is released and not helded
+        """
         global sb_was_held
         if not sb_was_held:
             print("RESTART")
-            self.toggleSIM()
-            subprocess.run(["sudo","reboot"])
+            self.toggleSIM() # Turns off the SIM808
+            subprocess.run(["sudo","reboot"]) # Sends reboot command to the OS
         sb_was_held = False
     
     
 
     
     def shutdown(self):
+        """Used to device when the button is pressed
+        """
         global sb_was_held
         print("SHUTDOWN SYSTEM")
-        self.toggleSIM()
-        subprocess.run(["sudo","poweroff"])
+        self.toggleSIM() # Turns off the SIM808
+        subprocess.run(["sudo","poweroff"]) # Sends poweroff command to the OS
         sb_was_held = True
     
 
@@ -79,6 +96,12 @@ class System:
     
 
     def checkSIM(self):
+        """Used to check if the SIM808 is connected and working,
+        it sends AT commands waiting for an OK
+
+        Returns:
+            boolean: True if the SIM808 is connected and working, otherwise returns False
+        """
         if os.path.exists(self.config.SIM_PORT):
             port = serial.Serial(self.config.SIM_PORT, baudrate=9600, timeout=1)
             try:
@@ -104,6 +127,11 @@ class System:
         GPIO.output(self.config.SIM_POWER_PIN, False)
     
     def makeCall(self,number):
+        """Sends various AT commands to the SIM808 to make a call to the number
+
+        Args:
+            number (String): Phone number to make a call
+        """
         port = serial.Serial(self.config.SIM_PORT, baudrate=9600, timeout=1)
         try:
             port.flush()
@@ -132,6 +160,12 @@ class System:
     
     
     def sendSMS(self,number,message):
+        """Sends various AT commands to the SIM808 to send an SMS to the number
+
+        Args:
+            number (String): Phone number to make a call
+            message (String): Message to send
+        """
         port = serial.Serial(self.config.SIM_PORT, baudrate=9600, timeout=1)
         try:
             port.flush()
@@ -177,6 +211,14 @@ class System:
         GPIO.output(self.config.CAR_POWER_PIN, False)
     
     def takePicture(self,save=False):
+        """Takes a picture using the camera, it can save in the storage of the device as jpg
+
+        Args:
+            save (bool, optional): Boolean to save the image file or not. Defaults to False.
+
+        Returns:
+            bytes: Photo content
+        """
         stream = BytesIO()
         camera = PiCamera()
         camera.start_preview()
@@ -193,6 +235,11 @@ class System:
         return photo
     
     def getLocation(self):
+        """Uses the gps device to return the coordinates
+
+        Returns:
+            tuple: GPS coordinates
+        """
         ser = serial.Serial(self.config.GPS_PORT, 9600, timeout=1)
         
         sio = io.TextIOWrapper(io.BufferedRWPair(ser, ser))
