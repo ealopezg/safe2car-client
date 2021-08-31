@@ -20,6 +20,8 @@ system_on = False
 power_cut_off = False
 CHANNEL_ID = 'private-vehicle.'+str(config.VEHICLE_ID)
 
+owner_phones = []
+motion_count = 0
 
 pusher = None
 api = None
@@ -39,12 +41,14 @@ def alive():
         time.sleep(60*1) # Waits for 1 minute
 
 def getLastState():
+    
     """This function is used on the main function, it runs once,
     it asks the server the last status setted in the server by the user.
     So, if the device lost connection or power, it can restore the last
     state.
     """
     global system_on
+    global owner_phones
     r = api.get(config.BASE_URL+'/api/vehicle/state')
     state = r.json()
     if r.ok:
@@ -53,6 +57,7 @@ def getLastState():
             system.activateBuzzer()
         if state.get('cut_off_power'):
             system.activateCarPowerCutter()
+        owner_phones = state.get('owner_phones')
 
 
 
@@ -110,8 +115,18 @@ def register(socket_id,channel):
 
 def motionDetected():
     global system_on
+    global owner_phones
+    global motion_count
     if system_on:
-        send_q.put(Command.motionCommand())
+        if motion_count%10 == 0:
+            motion_count = motion_count+1
+            send_q.put(Command.motionCommand())
+            for phone in owner_phones:
+                system.sendSMS(phone,"Se ha detectado un movimiento en tu vehiculo. Revisa en https://safetocar.cl/vehicle/"+str(config.VEHICLE_ID))
+                time.sleep(1)
+        else:
+            motion_count = motion_count+1
+        
 
 def sendCommand():
     """One of the many Threads used in the program,
@@ -237,7 +252,7 @@ if __name__ == "__main__":
     if not system.checkSIM():
         print("MODEM NOT POWERED ON...")
         system.toggleSIM()
-        time.sleep(5)
+        time.sleep(15)
         if not system.checkSIM():
             exit(1)
         else:

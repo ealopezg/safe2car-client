@@ -33,15 +33,17 @@ class System:
         GPIO.setup(self.config.CAR_POWER_PIN,GPIO.OUT)
         self.buzzer = Buzzer(config.BUZZER_PORT)
         self.pir = []
-        self.pir.append(MotionSensor(config.PIR1_PORT))
-        self.pir.append(MotionSensor(config.PIR2_PORT))
-        self.pir.append(MotionSensor(config.PIR3_PORT))
+        self.pir.append(MotionSensor(config.PIR1_PORT,queue_len=20))
+        self.pir.append(MotionSensor(config.PIR2_PORT,queue_len=20))
+        self.pir.append(MotionSensor(config.PIR3_PORT,queue_len=20))
         self.system_on = False
         self.shutdown_button = Button(self.config.SHUTDOWN_PIN)
         self.shutdown_button.when_released = self.restart
         self.shutdown_button.hold_time = 5
         self.shutdown_button.when_held = self.shutdown
         GPIO.setup(self.config.CAR_POWER_PIN, False)
+
+        self._sim_using = False
 
     def status(self,system):
         """Generates a dict with actual config status of the system
@@ -132,6 +134,9 @@ class System:
         Args:
             number (String): Phone number to make a call
         """
+        while self._sim_using:
+            time.sleep(1)
+        self._sim_using = True
         port = serial.Serial(self.config.SIM_PORT, baudrate=9600, timeout=1)
         try:
             port.flush()
@@ -157,7 +162,7 @@ class System:
             port.flush()
         finally:
             port.close()
-    
+        self._sim_using = False
     
     def sendSMS(self,number,message):
         """Sends various AT commands to the SIM808 to send an SMS to the number
@@ -166,6 +171,9 @@ class System:
             number (String): Phone number to make a call
             message (String): Message to send
         """
+        while self._sim_using:
+            time.sleep(1)
+        self._sim_using = True
         port = serial.Serial(self.config.SIM_PORT, baudrate=9600, timeout=1)
         try:
             port.flush()
@@ -203,7 +211,9 @@ class System:
             port.flush()
         finally:
             port.close()
-    
+        self._sim_using = False
+
+
     def activateCarPowerCutter(self):
         GPIO.output(self.config.CAR_POWER_PIN, True)
 
