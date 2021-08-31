@@ -1,32 +1,29 @@
-from gpiozero import MotionSensor,Buzzer
 from threading import *
 from multiprocessing import Process
-import subprocess
 import time
 import queue
 import json
-import os
 import requests
-import pickle
 import pysher
 
 from web import runApp
 from config import Config
 from system import System
 from command import Command
+from network import Network
 
 
 config = Config('config.ini')
 system = System(config)
+network = Network()
 system_on = False
 power_cut_off = False
-
-pusher = pysher.Pusher(config.PUSHER_KEY,secure=False,custom_host=config.PUSHER,port=config.PUSHER_PORT,secret=config.PUSHER_SECRET,auto_sub=True)
 CHANNEL_ID = 'private-vehicle.'+str(config.VEHICLE_ID)
 
 
-api = requests.Session()
-api.headers.update({"Authorization":"Bearer "+config.TOKEN,"Accept": "application/json"})
+pusher = None
+api = None
+
 
 
 
@@ -61,6 +58,7 @@ def getLastState():
 
 
 def pusher_connect_handler(data):
+    global pusher
     """Pusher connection handler,
     when the device connects to the pusher server,
     and returns the socket_id
@@ -72,8 +70,10 @@ def pusher_connect_handler(data):
     """
     data = json.loads(data)
     auth = register(data.get('socket_id'),CHANNEL_ID)
+    print("Connecting")
     if auth:
         channel = pusher.subscribe(CHANNEL_ID,auth=auth)
+        pusher.channels[CHANNEL_ID].auth = auth
         channel.bind('action', receiveCommand)
 
 
@@ -86,6 +86,8 @@ def pusher_connect_handler(data):
 
 
 def register(socket_id,channel):
+    global api
+    global pusher
     """The server needs the device to register everytime to the channel to start receiving
     commands, so it makes a POST request to the server and the server must return an auth
     token to use in the pusher connection 
@@ -101,7 +103,7 @@ def register(socket_id,channel):
         'socket_id': socket_id,
         'channel_name': channel
         }
-    r = api.post(config.BASE_URL+'/broadcasting/auth',data)
+    r = api.post(config.BASE_URL+'/broadcasting/auth',data,timeout=5)
     if r.ok:
         return r.json()['auth']
     return None
@@ -116,6 +118,7 @@ def sendCommand():
     Used to send commands to the server, uses the SEND QUEUE
     and make a POST request to the server with the info
     """
+    global api
     while True:
         command = send_q.get()
         if command:
@@ -123,7 +126,6 @@ def sendCommand():
             r = api.post(config.BASE_URL+'/api/vehicle/action',json=command.toObject())
             print(r.text)
             print('Command Sended: action:{} status: {}'.format(command.action,r.status_code))
-
 
 def receiveCommand(data):
     """Handler function used when a new command is received as text,
@@ -137,9 +139,6 @@ def receiveCommand(data):
     if data:
         command = Command.fromJson(data)
         action_q.put(command)
-
-
-
         
 def actionLoop():
     """Process to execute the different commands received from the server
@@ -194,11 +193,39 @@ def actionLoop():
                 system_on = False
                 send_q.put(command.ok())
         time.sleep(2)
-        
 
+def setConnections():
+    """Generates api request and pusher objects
+    to be used in the program
+    """
+    global api
+    global pusher
+    api = requests.Session()
+    api.headers.update({"Authorization":"Bearer "+config.TOKEN,"Accept": "application/json"})
+    pusher = pysher.Pusher(config.PUSHER_KEY,secure=False,custom_host=config.PUSHER,port=config.PUSHER_PORT,secret=config.PUSHER_SECRET)
+    pusher.connection.bind('pusher:connection_established', pusher_connect_handler)
+    pusher.connect()
 
-
-
+def monitorConnection():
+    """Checks every 5 seconds if
+    the device has internet conecction,
+    if not, swaps the interfaces (eth1 to eth2)
+    """
+    global pusher
+    last_status = None
+    while True:
+        status = network.internet()
+        if not status:
+            if last_status or last_status == None:
+                if pusher != None:
+                    pusher.disconnect()
+                print("No INTERNET detected: swapping the modems")
+                network.swapInterface()
+                time.sleep(20)
+                setConnections()
+        last_status = status
+        time.sleep(5)
+                
 if __name__ == "__main__":
     """Main process, first checks if the SIM808 is powered on,
     if not it powers on. Then starts the many threads and queue needed
@@ -231,9 +258,12 @@ if __name__ == "__main__":
     action_t = Thread(target=actionLoop)
     alive_t = Thread(target=alive)
 
+    connection_t = Thread(target=monitorConnection)
+    connection_t.start()
+    
+
     # Connects to the server using pusher connection
-    pusher.connection.bind('pusher:connection_established', pusher_connect_handler)
-    pusher.connect()
+    setConnections()
 
 
     # If the lan cable is connected, it starts the web config server
@@ -255,5 +285,4 @@ if __name__ == "__main__":
     send_t.join()
     action_t.join()
     alive_t.join()
-
-    
+    connection_t.join()

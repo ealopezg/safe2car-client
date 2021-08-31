@@ -20,6 +20,7 @@ flask = "*"
 netifaces = "*"
 waitress = "*"
 xmltodict = "*"
+pyroute2 = "*"
 
 [dev-packages]
 
