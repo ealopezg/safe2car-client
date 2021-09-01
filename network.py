@@ -108,6 +108,16 @@ class Network:
         except Exception as ex:
             return False
 
+    def turnOnModem(self):
+        h = HuaweiE3372()
+        if h.status() == 0:
+            h.switch_modem('1')
+            time.sleep(5)
+    
+    def checkModem(self):
+        h = HuaweiE3372()
+        return h.status() == 1
+
 
 
     

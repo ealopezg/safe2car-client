@@ -259,6 +259,10 @@ if __name__ == "__main__":
             print("MODEM POWERED")
     
     
+    if not network.checkModem():
+        network.turnOnModem()
+        time.sleep(10)
+    
     system.checkSerialPorts()
 
     for pir in system.pir: # Setups the motion handler for every pir sensor
